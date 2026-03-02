@@ -30,10 +30,7 @@ def ComputeTicker(ticker, window):
     # FUTURE RETURNS (for model training)
 
     df["log_ret"] = np.log(df["adj_close"] / df["adj_close"].shift(1))
-    df["future_ret"] = df["log_ret"].rolling(window).sum().shift(-window)
-    df["target"] = (df["future_ret"] > 0).astype(int)
     df = df.dropna(subset=["log_ret"])
-    df = df.dropna(subset=["future_ret"])
 
     # PRICE SLOPE
 
@@ -54,6 +51,9 @@ def ComputeTicker(ticker, window):
 
     # rolling volatility
     df["rolling_vol"] = df["log_ret"].rolling(window).std()
+    df["future_ret"] = df["log_ret"].rolling(window).sum().shift(-window)
+    df = df.dropna(subset=["future_ret"])
+    df["target"] = df["future_ret"] / (df["rolling_vol"] + 1e-8)
 
     # z score
     vol_mean = df["rolling_vol"].rolling(window).mean()

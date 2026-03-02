@@ -116,6 +116,7 @@ def train(
         val_sigma_sum = 0.0
         val_conf_sum = 0.0
         val_pred_pos = 0
+        val_snr_sum = 0
 
         with torch.no_grad():
             for X_batch, y_class_batch, y_ret_batch in val_loader:
@@ -127,6 +128,8 @@ def train(
                 log_var = log_var.view(-1).float()
 
                 sigma = torch.exp(0.5 * log_var)
+                snr = torch.abs(mu) / (sigma + 1e-8)
+                val_snr_sum += snr.mean().item() * y_ret_batch.size(0)
                 confidence = 1 / (1 + sigma / return_std)
 
                 val_mu_sum += mu.abs().sum().item()
@@ -145,6 +148,28 @@ def train(
         avg_val_sigma = val_sigma_sum / max(val_total, 1)
         avg_val_conf = val_conf_sum / max(val_total, 1)
         val_pred_rate = val_pred_pos / max(val_total, 1)
+        avg_val_snr = val_snr_sum / max(val_total, 1)
+
+        # Edge Score
+        # 1. Generalization score (penalize if val worse than train)
+        gen_gap = avg_train_loss - avg_val_loss
+        gen_score = max(min(gen_gap * 50, 20), 0)  # cap at 20 pts
+
+        # 2. Signal strength score (SNR based)
+        snr_score = max(min(avg_val_snr * 40, 30), 0)  # cap at 30 pts
+
+        # 3. Confidence improvement (σ vs return_std)
+        vol_ratio = avg_val_sigma / return_std
+        vol_score = max(min((1 - vol_ratio) * 50, 20), 0)  # up to 20 pts
+
+        # 4. Directional balance (penalize collapse)
+        direction_score = 20 * (1 - abs(val_pred_rate - 0.5) * 2)
+
+        # Combine
+        edge_score = gen_score + snr_score + vol_score + direction_score
+
+        # Clamp 0–100
+        edge_score = max(min(edge_score, 100), 0)
 
         print(
             f"Epoch {epoch:03d} | "
@@ -154,6 +179,8 @@ def train(
             f"Val σ: {avg_val_sigma:.5f} | "
             f"Val Conf: {avg_val_conf:.3f} | "
             f"Val pred+ rate: {val_pred_rate:.3f}"
+            f"Val SNR: {avg_val_snr:.3f} | "
+            f"EDGE SCORE: {edge_score:.1f}/100"
         )
 
     return model, mean, std, return_std
@@ -166,5 +193,5 @@ if __name__ == "__main__":
     train(
         X_train, y_class_train, y_ret_train,
         X_val, y_class_val, y_ret_val,
-        epochs=25
+        epochs=10
     )
