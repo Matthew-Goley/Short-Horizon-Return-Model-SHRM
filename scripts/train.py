@@ -8,11 +8,8 @@ from data_pipeline import CCOMPUTEALL
 from dataset import MarketDataset
 from model import TransformerClassifier # returns mu and log_var
 
-def gaussian_nll(y: torch.Tensor, mu: torch.Tensor, log_var: torch.Tensor) -> torch.Tensor:
-    # y, mu, log_var: (B,)
-    # NLL up to additive constant:
-    # 0.5 * [ (y-mu)^2 / exp(log_var) + log_var ]
-    return 0.5 * ((y- mu) ** 2 / torch.exp(log_var) + log_var).mean()
+def gaussian_nll(y, mu, log_var):
+    return 0.5 * ((y - mu) ** 2 / torch.exp(log_var) + log_var).mean()
 
 def norm_train_stats(X_train: np.ndarray):
     # X_train: (N, L, F)
@@ -29,7 +26,7 @@ def train(
     X_val, y_class_val, y_ret_val,
     epochs: int = 25,
     batch_size: int = 32,
-    lr: float = 5e-4,
+    lr: float = 8e-4,
     grad_clip: float = 1.0,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -56,7 +53,7 @@ def train(
         feature_dim=feature_dim,
         d_model=32,
         num_heads=4,
-        num_layers=2,
+        num_layers=1,
         dropout=0.1
     ).to(device)
 
@@ -66,7 +63,7 @@ def train(
     print(f"Total Parameters: {total_params:,}")
     print(f"Trinable Parameters: {trainable_params:,}")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
     for epoch in range(1, epochs + 1):
         # train
@@ -193,5 +190,5 @@ if __name__ == "__main__":
     train(
         X_train, y_class_train, y_ret_train,
         X_val, y_class_val, y_ret_val,
-        epochs=10
+        epochs=50
     )

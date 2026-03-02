@@ -27,7 +27,7 @@ def ComputeTicker(ticker, window):
 
     # create features
 
-    # FUTURE RETURNS (for model training)
+    # Log Returns
 
     df["log_ret"] = np.log(df["adj_close"] / df["adj_close"].shift(1))
     df = df.dropna(subset=["log_ret"])
@@ -49,11 +49,13 @@ def ComputeTicker(ticker, window):
 
     # VOLATILITY Z SCORE
 
-    # rolling volatility
+    # rolling volatility + future returns
     df["rolling_vol"] = df["log_ret"].rolling(window).std()
-    df["future_ret"] = df["log_ret"].rolling(window).sum().shift(-window)
+    df["future_ret"] = df["log_ret"].shift(-1).rolling(window).sum()
     df = df.dropna(subset=["future_ret"])
     df["target"] = df["future_ret"] / (df["rolling_vol"] + 1e-8)
+
+    df["realized_vol_norm"] = df["rolling_vol"] / (df["rolling_vol"].rolling(window * 4).mean() + 1e-8)
 
     # z score
     vol_mean = df["rolling_vol"].rolling(window).mean()
@@ -80,6 +82,21 @@ def ComputeTicker(ticker, window):
     df["log_volume"] = np.log(df["volume"] + 1)
     df = df.dropna(subset=["log_volume"])
 
+    # time of day
+    df["hours"] = df["date"].dt.hour
+    df["minutes_from_open"] = (df["hours"] - 9) * 60 + (df["date"].dt.minute - 30)
+    df["tod_sin"] = np.sin(2 * np.pi * df["minutes_from_open"] / 390)  # 390 min trading day
+    df["tod_cos"] = np.cos(2 * np.pi * df["minutes_from_open"] / 390)
+
+
+    df["is_open"] = (df["date"].dt.hour == 9) & (df["date"].dt.minute == 30)
+    df["is_open"] = df["is_open"].astype(int)
+
+    # high low range
+    df["hl_range"] = (df["high"] - df["low"]) / df["adj_close"]
+    df["hl_range_norm"] = df["hl_range"] / df["hl_range"].rolling(window * 4).mean()
+
+
     # debug
     df = df.dropna().reset_index(drop=True)
     assert df.isna().sum().sum() == 0
@@ -94,7 +111,18 @@ def create_sequences(df, seq_len, len_shift=1):
     y_class = []
     y_ret = []
     
-    features = df[["price_slope", "log_volume", "volat_z", "draw_state"]].values
+    features = df[[
+        "price_slope", 
+        "log_volume", 
+        "volat_z", 
+        "draw_state",
+        "tod_sin",
+        "tod_cos",
+        "is_open",
+        "realized_vol_norm",
+        "hl_range_norm"
+    ]].values
+
     targets_class = df["target"].values
     targets_ret = df["future_ret"].values
 

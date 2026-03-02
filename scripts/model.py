@@ -22,38 +22,42 @@ class TransformerClassifier(nn.Module):
             num_layers=num_layers
         )
 
-        # classification head
         self.final_dropout = nn.Dropout(dropout)
+        self.mu_head = nn.Linear(d_model, 1)
 
-        # dual head
-        self.mu_head = nn.Linear(d_model, 1)      # predicted return
-        self.log_var_head = nn.Linear(d_model, 1) # predicted uncertainty
+        # dedicated sigma path: volat_z(2), realized_vol_norm(7), hl_range_norm(8)
+        self.sigma_mlp = nn.Sequential(
+            nn.Linear(3, 16),
+            nn.ReLU(),
+            nn.Linear(16, 1)
+        )
     
     def forward(self, x):
         # x shape: (batch, seq_len, feature_dim)
 
-        x = self.input_proj(x)  # (batch, seq, d_model)
+        vol_features = x[:, -1, :][:, [2, 7, 8]] # (batch, 3)
 
-        x = self.transformer(x)  # (batch, seq, d_model)
+        # mu path: full transformer
+        x_enc = self.input_proj(x)
+        x_enc = self.transformer(x_enc)
+        x_last = self.final_dropout(x_enc[:, -1, :])
+        mu = self.mu_head(x_last)
 
-        # take representation of last timestep
-        x = x[:, -1, :]  # (batch, d_model)
-        x = self.final_dropout(x)
-
-        mu = self.mu_head(x)
-        log_var = self.log_var_head(x)
+        # sigma path: independent of transformer
+        log_var = self.sigma_mlp(vol_features)
+        log_var = torch.clamp(log_var, min=-6, max=2)
 
         return mu, log_var
     
 if __name__ == "__main__":
     model = TransformerClassifier(
-        feature_dim=4,
+        feature_dim=9,
         d_model=32,
         num_heads=4,
         num_layers=2
     )
 
-    dummy = torch.randn(40000, 24, 4)
+    dummy = torch.randn(16, 24, 9)
     mu, log_var = model(dummy)
 
     print(f"mu shape: {mu.shape}")
