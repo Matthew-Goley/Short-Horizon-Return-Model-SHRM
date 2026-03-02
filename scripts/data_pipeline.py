@@ -104,6 +104,14 @@ def ComputeTicker(ticker, window):
     # model_df = df[["price_slope", "volat_z", "draw_state", "log_volume", "target"]].copy()
     # model_df = model_df.reset_index(drop=True)
 
+    if ticker == "AAPL":
+        # check what fraction of future_ret variance comes from overnight bars
+        df["is_overnight"] = df["date"].diff().dt.total_seconds() > 3600 * 2
+        overnight_ret = df.loc[df["is_overnight"], "log_ret"].std()
+        intraday_ret = df.loc[~df["is_overnight"], "log_ret"].std()
+        print(f"Overnight ret std: {overnight_ret:.5f}")
+        print(f"Intraday ret std: {intraday_ret:.5f}")
+
     return df
 
 def create_sequences(df, seq_len, len_shift=1):

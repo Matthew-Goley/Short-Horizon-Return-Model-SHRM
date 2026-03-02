@@ -18,8 +18,12 @@ def norm_train_stats(X_train: np.ndarray):
     std = flat.std(axis=0)
     return mean, std
 
-def apply_norm(X: np.ndarray, mean: np.ndarray, std: np.ndarray):
-    return (X - mean) / (std + 1e-8)
+def apply_norm(X: np.ndarray, mean: np.ndarray, std: np.ndarray, skip_cols=None):
+    X_norm = (X - mean) / (std + 1e-8)
+    if skip_cols:
+        for col in skip_cols:
+            X_norm[:, :, col] = X[:, :, col]  # restore raw values
+    return X_norm
 
 def train(
     X_train, y_class_train, y_ret_train,
@@ -34,8 +38,8 @@ def train(
 
     # Normalize using training stats
     mean, std = norm_train_stats(X_train)
-    X_train = apply_norm(X_train, mean, std)
-    X_val = apply_norm(X_val, mean, std)
+    X_train = apply_norm(X_train, mean, std, skip_cols=[7, 8])
+    X_val = apply_norm(X_val, mean, std, skip_cols=[7, 8])
 
     # return std for confidence scaling
     return_std = float(np.std(y_ret_train))
@@ -114,6 +118,7 @@ def train(
         val_conf_sum = 0.0
         val_pred_pos = 0
         val_snr_sum = 0
+        val_dir_acc_sum = 0
 
         with torch.no_grad():
             for X_batch, y_class_batch, y_ret_batch in val_loader:
@@ -122,6 +127,10 @@ def train(
 
                 mu, log_var = model(X_batch)
                 mu = mu.view(-1).float()
+
+                correct = ((mu > 0) == (y_ret_batch > 0)).float()
+                val_dir_acc_sum += correct.sum().item()
+
                 log_var = log_var.view(-1).float()
 
                 sigma = torch.exp(0.5 * log_var)
@@ -146,26 +155,21 @@ def train(
         avg_val_conf = val_conf_sum / max(val_total, 1)
         val_pred_rate = val_pred_pos / max(val_total, 1)
         avg_val_snr = val_snr_sum / max(val_total, 1)
+        avg_dir_acc = val_dir_acc_sum / max(val_total, 1)
 
         # Edge Score
-        # 1. Generalization score (penalize if val worse than train)
         gen_gap = avg_train_loss - avg_val_loss
         gen_score = max(min(gen_gap * 50, 20), 0)  # cap at 20 pts
 
-        # 2. Signal strength score (SNR based)
         snr_score = max(min(avg_val_snr * 40, 30), 0)  # cap at 30 pts
 
-        # 3. Confidence improvement (σ vs return_std)
         vol_ratio = avg_val_sigma / return_std
         vol_score = max(min((1 - vol_ratio) * 50, 20), 0)  # up to 20 pts
 
-        # 4. Directional balance (penalize collapse)
         direction_score = 20 * (1 - abs(val_pred_rate - 0.5) * 2)
 
-        # Combine
         edge_score = gen_score + snr_score + vol_score + direction_score
 
-        # Clamp 0–100
         edge_score = max(min(edge_score, 100), 0)
 
         print(
@@ -175,9 +179,10 @@ def train(
             f"Val |μ|: {avg_val_mu:.5f} | "
             f"Val σ: {avg_val_sigma:.5f} | "
             f"Val Conf: {avg_val_conf:.3f} | "
-            f"Val pred+ rate: {val_pred_rate:.3f}"
+            f"Val pred+ rate: {val_pred_rate:.3f} | "
             f"Val SNR: {avg_val_snr:.3f} | "
-            f"EDGE SCORE: {edge_score:.1f}/100"
+            f"EDGE SCORE: {edge_score:.1f}/100 | "
+            f"Dir Acc: {avg_dir_acc:.3f} | "
         )
 
     return model, mean, std, return_std
@@ -190,5 +195,5 @@ if __name__ == "__main__":
     train(
         X_train, y_class_train, y_ret_train,
         X_val, y_class_val, y_ret_val,
-        epochs=50
+        epochs=15
     )
