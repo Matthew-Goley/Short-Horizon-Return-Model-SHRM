@@ -38,8 +38,8 @@ def train(
 
     # Normalize using training stats
     mean, std = norm_train_stats(X_train)
-    X_train = apply_norm(X_train, mean, std, skip_cols=[7, 8])
-    X_val = apply_norm(X_val, mean, std, skip_cols=[7, 8])
+    X_train = apply_norm(X_train, mean, std)
+    X_val = apply_norm(X_val, mean, std)
 
     # return std for confidence scaling
     return_std = float(np.std(y_ret_train))
@@ -195,5 +195,5 @@ if __name__ == "__main__":
     train(
         X_train, y_class_train, y_ret_train,
         X_val, y_class_val, y_ret_val,
-        epochs=15
+        epochs=25
     )

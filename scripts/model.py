@@ -27,7 +27,7 @@ class TransformerClassifier(nn.Module):
 
         # dedicated sigma path: volat_z(2), realized_vol_norm(7), hl_range_norm(8)
         self.sigma_mlp = nn.Sequential(
-            nn.Linear(3, 16),
+            nn.Linear(2, 16),
             nn.ReLU(),
             nn.Linear(16, 1)
         )
@@ -35,7 +35,7 @@ class TransformerClassifier(nn.Module):
     def forward(self, x):
         # x shape: (batch, seq_len, feature_dim)
 
-        vol_features = x[:, -1, :][:, [2, 7, 8]] # (batch, 3)
+        vol_features = x[:, -1, :][:, [2, 3]] # (batch, 3)
 
         # mu path: full transformer
         x_enc = self.input_proj(x)
@@ -51,13 +51,13 @@ class TransformerClassifier(nn.Module):
     
 if __name__ == "__main__":
     model = TransformerClassifier(
-        feature_dim=9,
+        feature_dim=4,
         d_model=32,
         num_heads=4,
         num_layers=2
     )
 
-    dummy = torch.randn(16, 24, 9)
+    dummy = torch.randn(16, 24, 4)
     mu, log_var = model(dummy)
 
     print(f"mu shape: {mu.shape}")

@@ -124,11 +124,11 @@ def create_sequences(df, seq_len, len_shift=1):
         "log_volume", 
         "volat_z", 
         "draw_state",
-        "tod_sin",
-        "tod_cos",
-        "is_open",
-        "realized_vol_norm",
-        "hl_range_norm"
+        # "tod_sin",
+        # "tod_cos",
+        # "is_open",
+        # "realized_vol_norm",
+        # "hl_range_norm"
     ]].values
 
     targets_class = df["target"].values
