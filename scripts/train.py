@@ -71,6 +71,15 @@ def train(
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
+    best_nll_val = float("inf")
+    best_state = None
+
+    # Early stopping config:
+    # - `patience` is the number of consecutive epochs we'll allow without a new best val NLL before stopping.
+    # - `epochs_since_improvement` is the running counter — reset to 0 every time val NLL hits a new low.
+    patience = 5
+    epochs_since_improvement = 0
+
     for epoch in range(1, epochs + 1):
         # train
         model.train()
@@ -174,6 +183,16 @@ def train(
 
         edge_score = max(min(edge_score, 100), 0)
 
+        # NLL best — also drives the early-stopping patience counter.
+        # If val NLL hit a new low, snapshot the weights and reset the counter to 0.
+        # Otherwise, increment the counter (we just had an epoch with no improvement).
+        if avg_val_loss < best_nll_val:
+            best_nll_val = avg_val_loss
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
+            epochs_since_improvement = 0
+        else:
+            epochs_since_improvement += 1
+
         print(
             f"Epoch {epoch:03d} | "
             f"Train NLL: {avg_train_loss:.6f} | "
@@ -187,15 +206,25 @@ def train(
             f"Dir Acc: {avg_dir_acc:.3f} | "
         )
 
+        # Early stopping check: if val NLL hasn't improved for `patience` consecutive epochs,
+        # we've stopped generalizing further — extra epochs would only overfit. Break out and
+        # the best weights (saved above whenever val improved) will be loaded after the loop.
+        if epochs_since_improvement >= patience:
+            print(f"Early stopping at epoch {epoch}: no val improvement for {patience} epochs")
+            break
+    
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
     return model, mean, std, return_std
 
 if __name__ == "__main__":
     X_train, y_class_train, y_ret_train, X_val, y_class_val, y_ret_val = CCOMPUTEALL(
-        window=12, seq_len=24, len_shift=1, sector="tech"
+        window=12, seq_len=70, len_shift=1, sector="tech"
     )
 
     train(
         X_train, y_class_train, y_ret_train,
         X_val, y_class_val, y_ret_val,
-        epochs=500
+        epochs=50
     )
