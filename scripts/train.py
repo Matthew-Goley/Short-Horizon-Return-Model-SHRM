@@ -30,7 +30,7 @@ def train(
     X_val, y_class_val, y_ret_val,
     epochs: int = 25,
     batch_size: int = 32,
-    lr: float = 8e-4,
+    lr: float = 2e-4,
     grad_clip: float = 1.0,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -58,8 +58,10 @@ def train(
         d_model=32,
         num_heads=4,
         num_layers=1,
+        seq_len=X_train.shape[1],   # <-- new
         dropout=0.1
     ).to(device)
+
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -195,5 +197,5 @@ if __name__ == "__main__":
     train(
         X_train, y_class_train, y_ret_train,
         X_val, y_class_val, y_ret_val,
-        epochs=10
+        epochs=500
     )

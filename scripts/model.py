@@ -2,11 +2,15 @@ import torch
 import torch.nn as nn
 
 class TransformerClassifier(nn.Module):
-    def __init__(self, feature_dim, d_model, num_heads, num_layers, dropout=0.1):
+    def __init__(self, feature_dim, d_model, num_heads, num_layers, seq_len, dropout=0.1):
         super().__init__()
 
         # project 2 -> d_model
         self.input_proj = nn.Linear(feature_dim, d_model)
+
+        # pos encoding
+        self.pos_embed = nn.Parameter(torch.zeros(1, seq_len, d_model)) # learned encodings
+        nn.init.trunc_normal_(self.pos_embed, std=0.02)
 
         # add dropout before final claassifier
 
@@ -39,13 +43,14 @@ class TransformerClassifier(nn.Module):
 
         # mu path: full transformer
         x_enc = self.input_proj(x)
+        x_enc = x_enc + self.pos_embed
         x_enc = self.transformer(x_enc)
         x_last = self.final_dropout(x_enc[:, -1, :])
         mu = self.mu_head(x_last)
 
         # sigma path: independent of transformer
         log_var = self.sigma_mlp(vol_features)
-        log_var = torch.clamp(log_var, min=-6, max=2)
+        log_var = torch.clamp(log_var, min=-12, max=2)
 
         return mu, log_var
     
@@ -54,7 +59,8 @@ if __name__ == "__main__":
         feature_dim=4,
         d_model=32,
         num_heads=4,
-        num_layers=2
+        num_layers=2,
+        seq_len=24
     )
 
     dummy = torch.randn(16, 24, 4)
