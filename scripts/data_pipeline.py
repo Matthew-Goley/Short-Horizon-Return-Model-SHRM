@@ -51,7 +51,7 @@ def ComputeTicker(ticker, window):
 
     # rolling volatility + future returns
     df["rolling_vol"] = df["log_ret"].rolling(window).std()
-    df["future_ret"] = df["log_ret"].shift(-1).rolling(window).sum()
+    df["future_ret"] = np.log(df["adj_close"].shift(-window) / df["adj_close"])
     df = df.dropna(subset=["future_ret"])
     df["target"] = df["future_ret"] / (df["rolling_vol"] + 1e-8)
 
@@ -83,14 +83,14 @@ def ComputeTicker(ticker, window):
     df = df.dropna(subset=["log_volume"])
 
     # time of day
+    et = df["date"].dt.tz_convert("America/New_York")
+
     df["hours"] = df["date"].dt.hour
-    df["minutes_from_open"] = (df["hours"] - 9) * 60 + (df["date"].dt.minute - 30)
+    df["minutes_from_open"] = (et.dt.hour - 9) * 60 + (et.dt.minute - 30)
     df["tod_sin"] = np.sin(2 * np.pi * df["minutes_from_open"] / 390)  # 390 min trading day
     df["tod_cos"] = np.cos(2 * np.pi * df["minutes_from_open"] / 390)
 
-
-    df["is_open"] = (df["date"].dt.hour == 9) & (df["date"].dt.minute == 30)
-    df["is_open"] = df["is_open"].astype(int)
+    df["is_open"] = ((et.dt.hour == 9) & (et.dt.minute == 30)).astype(int)
 
     # high low range
     df["hl_range"] = (df["high"] - df["low"]) / df["adj_close"]
@@ -111,6 +111,9 @@ def ComputeTicker(ticker, window):
         intraday_ret = df.loc[~df["is_overnight"], "log_ret"].std()
         print(f"Overnight ret std: {overnight_ret:.5f}")
         print(f"Intraday ret std: {intraday_ret:.5f}")
+
+    for col in ["price_slope", "log_volume"]:
+        df[col] = (df[col] - df[col].mean()) / (df[col].std() + 1e-8)
 
     return df
 
@@ -141,12 +144,13 @@ def create_sequences(df, seq_len, len_shift=1):
 
     return np.array(X), np.array(y_class), np.array(y_ret)
 
-def split_sets(X, y_class, y_ret):
+def split_sets(X, y_class, y_ret, embargo=0):
         split_idx = int(0.7 * len(X))
+        train_end = max(0, split_idx - embargo)
 
-        X_train = X[:split_idx]
-        y_class_train = y_class[:split_idx]
-        y_ret_train = y_ret[:split_idx]
+        X_train = X[:train_end]
+        y_class_train = y_class[:train_end]
+        y_ret_train = y_ret[:train_end]
 
         X_val = X[split_idx:]
         y_class_val = y_class[split_idx:]
@@ -199,7 +203,7 @@ def CCOMPUTEALL(window=12, seq_len = 24, len_shift=1, sector="tech"):
         X, y_class, y_ret = create_sequences(df, seq_len, len_shift)
 
         X_train, y_class_train, y_ret_train, X_val, y_class_val, y_ret_val = split_sets(
-            X, y_class, y_ret
+            X, y_class, y_ret, embargo=seq_len + window
         )
 
         all_X_train.append(X_train)
