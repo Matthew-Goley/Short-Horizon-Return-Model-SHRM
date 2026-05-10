@@ -220,7 +220,7 @@ def train(
 
 if __name__ == "__main__":
     X_train, y_class_train, y_ret_train, X_val, y_class_val, y_ret_val = CCOMPUTEALL(
-        window=12, seq_len=70, len_shift=1, sector="tech"
+        window=35, seq_len=70, len_shift=1, sector="tech"
     )
 
     train(

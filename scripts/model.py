@@ -39,7 +39,7 @@ class TransformerClassifier(nn.Module):
     def forward(self, x):
         # x shape: (batch, seq_len, feature_dim)
 
-        vol_features = x[:, -1, :][:, [2, 3]] # (batch, 3)
+        vol_features = x[:, -1, :][:, [2, 3]] # (batch, 2) — volat_z, draw_state
 
         # mu path: full transformer
         x_enc = self.input_proj(x)

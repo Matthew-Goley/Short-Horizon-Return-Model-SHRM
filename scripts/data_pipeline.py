@@ -123,9 +123,9 @@ def create_sequences(df, seq_len, len_shift=1):
     y_ret = []
     
     features = df[[
-        "price_slope", 
-        "log_volume", 
-        "volat_z", 
+        "price_slope",
+        "log_volume",
+        "volat_z",
         "draw_state",
         # "tod_sin",
         # "tod_cos",
@@ -166,6 +166,7 @@ def CCOMPUTEALL(window=12, seq_len = 24, len_shift=1, sector="tech"):
     healthcare = pd.read_csv(DATA_DIR / "healthcare.csv")["ticker"].tolist()
     energy = pd.read_csv(DATA_DIR / "energy.csv")["ticker"].tolist()
     industry = pd.read_csv(DATA_DIR / "industry.csv")["ticker"].tolist()
+    ffx = pd.read_csv(DATA_DIR / "ffx.csv")["ticker"].tolist()
 
     sector_map = {
         "tech": tech,
@@ -175,7 +176,8 @@ def CCOMPUTEALL(window=12, seq_len = 24, len_shift=1, sector="tech"):
         "healthcare": healthcare,
         "energy": energy,
         "industry": industry,
-        "all": tech + financials + consumer + staples + healthcare + energy + industry
+        "ffx": ffx,
+        "all": tech + financials + consumer + staples + healthcare + energy + industry  # equities only — ffx mixed in would break vol normalization
     }
 
     tickers = sector_map[sector]
