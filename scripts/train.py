@@ -32,6 +32,7 @@ def train(
     batch_size: int = 32,
     lr: float = 2e-4,
     grad_clip: float = 1.0,
+    use_dashboard: bool = False,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using Device: {device}")
@@ -44,6 +45,12 @@ def train(
     # return std for confidence scaling
     return_std = float(np.std(y_ret_train))
     print(f"return_std (train): {return_std}")
+
+    # optional live dashboard. Imported lazily so the module is only required if requested.
+    dashboard = None
+    if use_dashboard:
+        from dashboard import Dashboard
+        dashboard = Dashboard(return_std)
 
     train_dataset = MarketDataset(X_train, y_class_train, y_ret_train)
     val_dataset = MarketDataset(X_val, y_class_val, y_ret_val)
@@ -113,6 +120,11 @@ def train(
             bs = y_ret_batch.size(0)
             train_loss_sum += loss.item() * bs
             train_total += bs
+
+            # Live dashboard: per-batch update. The dashboard itself throttles its redraw,
+            # but we still hand it every batch's mean μ and σ so its history is complete.
+            if dashboard is not None:
+                dashboard.update_batch(mu.abs().mean().item(), sigma.mean().item())
 
         avg_train_loss = train_loss_sum / max(train_total, 1)
         avg_train_mu = train_mu_sum / max(train_total, 1)
@@ -206,6 +218,11 @@ def train(
             f"Dir Acc: {avg_dir_acc:.3f} | "
         )
 
+        # Live dashboard: per-epoch update. Pushes the new train/val NLL, Dir Acc, and
+        # pred+ rate into the dashboard so its epoch panels redraw.
+        if dashboard is not None:
+            dashboard.update_epoch(avg_train_loss, avg_val_loss, avg_dir_acc, val_pred_rate)
+
         # Early stopping check: if val NLL hasn't improved for `patience` consecutive epochs,
         # we've stopped generalizing further — extra epochs would only overfit. Break out and
         # the best weights (saved above whenever val improved) will be loaded after the loop.
@@ -216,9 +233,18 @@ def train(
     if best_state is not None:
         model.load_state_dict(best_state)
 
+    # Dashboard cleanup: switches to blocking mode so the user can inspect the final
+    # state of all panels. Closing the window returns control here.
+    if dashboard is not None:
+        dashboard.close()
+
     return model, mean, std, return_std
 
 if __name__ == "__main__":
+    # Ask up front so the user doesn't sit through CCOMPUTEALL only to find they forgot to enable it.
+    choice = input("Enable dashboard? [1=yes, 2=no]: ").strip()
+    use_dashboard = (choice == "1")
+
     X_train, y_class_train, y_ret_train, X_val, y_class_val, y_ret_val = CCOMPUTEALL(
         window=35, seq_len=70, len_shift=1, sector="tech"
     )
@@ -226,5 +252,6 @@ if __name__ == "__main__":
     train(
         X_train, y_class_train, y_ret_train,
         X_val, y_class_val, y_ret_val,
-        epochs=50
+        epochs=50,
+        use_dashboard=use_dashboard,
     )
