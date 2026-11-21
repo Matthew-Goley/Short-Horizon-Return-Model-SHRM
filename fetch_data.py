@@ -1,18 +1,11 @@
 """
-Standalone data-acquisition script for the Short-Horizon-Return-Model (SHRM).
+Standalone data-acquisition script for the Short-Horizon-Return-Model (SHRM)
 
-Downloads historical OHLCV bars from Yahoo Finance (via yfinance) for the
-tickers in each sector below, cleans them up, and writes them to
-data/raw/{TICKER}.csv in the exact schema scripts/data_pipeline.py expects:
-    date, open, high, low, adj_close, volume
+Downloads historical OHLCV bars from Yahoo Finance 
 
-It also writes the per-sector ticker-list CSVs (data/tech.csv, data/financials.csv,
-data/consumer.csv, data/staples.csv, data/healthcare.csv, data/energy.csv,
-data/industry.csv, data/ffx.csv) that scripts/data_pipeline.py::CCOMPUTEALL
-reads to know which tickers belong to which sector.
+It also writes the per-sector ticker-list CSVs 
 
-This script is fully independent of the model code: it does not import from
-or modify anything under scripts/. Run this first, then run scripts/train.py.
+This script is independent of the scripts in SHRM
 
 Usage:
     python fetch_data.py
@@ -31,10 +24,6 @@ PROJECT_DIR = Path(__file__).resolve().parent
 DATA_DIR = PROJECT_DIR / "data"
 RAW_DIR = DATA_DIR / "raw"
 
-# Ticker lists per dev_notes.md. "ffx" (futures + forex) has no list in the
-# project notes, so a reasonable default basket of liquid CME futures and
-# major FX pairs is used instead — edit data/ffx.csv or the list below if you
-# want a different set.
 SECTORS = {
     "tech": ["AAPL", "MSFT", "GOOGL", "META", "NVDA", "AMD", "INTC", "CSCO", "ORCL", "IBM", "ADBE", "CRM", "INTU", "SHOP"],
     "financials": ["JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "PYPL"],
@@ -48,8 +37,7 @@ SECTORS = {
 
 REQUIRED_COLUMNS = ["date", "open", "high", "low", "adj_close", "volume"]
 
-# yfinance limits how far back intraday intervals can go: 60m/1h bars max out
-# at 730 days. Daily ("1d") bars have no such limit.
+# yfinance max
 MAX_INTRADAY_PERIOD = "730d"
 
 
@@ -78,8 +66,6 @@ def fetch_ticker(ticker: str, interval: str, period: str, retries: int = 3) -> p
 
     raw = raw.reset_index()
 
-    # yfinance names the timestamp column "Date" for daily bars and
-    # "Datetime" for intraday bars.
     ts_col = "Datetime" if "Datetime" in raw.columns else "Date"
     raw = raw.rename(columns={ts_col: "date"})
     raw.columns = [str(c).strip().lower().replace(" ", "_") for c in raw.columns]
@@ -87,9 +73,6 @@ def fetch_ticker(ticker: str, interval: str, period: str, retries: int = 3) -> p
     if "adj_close" not in raw.columns:
         raw["adj_close"] = raw["close"]
 
-    # Normalize to UTC so the CSV round-trips through a plain
-    # pd.to_datetime() with a single, unambiguous offset (no DST-related
-    # mixed-offset parsing issues), exactly what data_pipeline.py assumes.
     if raw["date"].dt.tz is None:
         raw["date"] = raw["date"].dt.tz_localize("UTC")
     else:
@@ -97,9 +80,7 @@ def fetch_ticker(ticker: str, interval: str, period: str, retries: int = 3) -> p
 
     df = raw[REQUIRED_COLUMNS].copy()
     df = df.dropna(subset=REQUIRED_COLUMNS)
-    # Note: FX pairs always report volume == 0 in yfinance (no consolidated
-    # tape), so a volume > 0 filter would silently wipe out the ffx sector.
-    # Zero-volume bars are left in; log_volume/log(volume + 1) handles them.
+
     df = df.drop_duplicates(subset="date").sort_values("date").reset_index(drop=True)
     return df
 
@@ -129,7 +110,7 @@ def main() -> None:
             print(f"unknown sector '{sector}', skipping")
             continue
         tickers.extend(SECTORS[sector])
-    tickers = list(dict.fromkeys(tickers))  # de-dupe, keep order
+    tickers = list(dict.fromkeys(tickers))  # de-dupe
 
     print(f"\nFetching {len(tickers)} tickers @ interval={args.interval} period={args.period}\n")
 
