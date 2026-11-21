@@ -205,6 +205,7 @@ def train(
             f"EDGE SCORE: {edge_score:.1f}/100 | "
             f"Dir Acc: {avg_dir_acc:.3f} | "
         )
+        open("results.csv", "a").write(f"{epoch},{best_nll_val},{avg_train_loss},{avg_val_loss},{avg_val_mu},{avg_val_sigma},{avg_val_conf},{val_pred_rate},{avg_val_snr},{edge_score},{avg_dir_acc}\n")
 
         # Early stopping check: if val NLL hasn't improved for `patience` consecutive epochs,
         # we've stopped generalizing further — extra epochs would only overfit. Break out and
