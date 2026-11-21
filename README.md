@@ -36,7 +36,7 @@ The answer from these runs is no edge. :(
 
 ### Data
 
-- **Source:** Yahoo Finance through `yfinance`, 1-hour bars. Data files are not in this repo because Yahoo's terms generally restrict redistributing the data. Fetch them with `scripts/fetch_data.py`.
+- **Source:** Yahoo Finance through `yfinance`, 1-hour bars. Data files are not in this repo because Yahoo's terms generally restrict redistributing the data. Fetch them with `fetch_data.py`.
 - **Tickers (sector "tech"):** AAPL, MSFT, GOOGL, META, NVDA, AMD, INTC, CSCO, ORCL, IBM, ADBE, CRM, INTU, SHOP.
 - **Local data used:** 2023-12-26 to 2026-11-20, about 5,076 hourly rows per ticker.
 
@@ -123,9 +123,9 @@ The model is penalized for wrong predictions, but wrong predictions with a large
 ## Reproduce
 
 ```bash
-pip install -r requirements.txt
-python scripts/fetch_data.py
-python scripts/train.py
+pip install -r requirements.txt matplotlib
+python fetch_data.py
+python main.py
 python make_figures.py
 ```
 
